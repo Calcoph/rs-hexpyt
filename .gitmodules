@@ -1,0 +1,3 @@
+[submodule "hexpyt"]
+	path = hexpyt
+	url = https://github.com/Calcoph/hexpyt
