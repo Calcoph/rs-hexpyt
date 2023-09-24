@@ -13,3 +13,4 @@ pyo3 = "0.19.0"
 
 [dependencies.hexparser]
 git = "https://github.com/Calcoph/hexpat-lsp"
+rev = "6928486"
