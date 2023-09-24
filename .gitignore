@@ -1,5 +1,6 @@
 /target
 /target-win
+/py_test/pattern_outputs
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
