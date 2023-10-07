@@ -236,7 +236,7 @@ dependencies = [
 [[package]]
 name = "hexparser"
 version = "1.2.3"
-source = "git+https://github.com/Calcoph/hexpat-lsp?rev=6928486#69284866cd7518c5e0c021ea021436ef7381c0cb"
+source = "git+https://github.com/Calcoph/hexpat-lsp?rev=fbbe9e8#fbbe9e899b9ffdde0225d7d9a54f1561d0b7722b"
 dependencies = [
  "expand_str",
  "nom",
@@ -444,7 +444,7 @@ dependencies = [
 [[package]]
 name = "parserlib"
 version = "0.1.0"
-source = "git+https://github.com/Calcoph/hexpat-lsp?rev=6928486#69284866cd7518c5e0c021ea021436ef7381c0cb"
+source = "git+https://github.com/Calcoph/hexpat-lsp?rev=fbbe9e8#fbbe9e899b9ffdde0225d7d9a54f1561d0b7722b"
 dependencies = [
  "tower-lsp 0.19.0",
 ]

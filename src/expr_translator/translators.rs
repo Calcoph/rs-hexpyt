@@ -1,8 +1,8 @@
-use hexparser::{token::Spanned, Value, Expr, m_parser::{UnaryOp, HexTypeDef, BinaryOp, FuncArgument, MatchBranch, Assignment}};
+use hexparser::{token::Spanned, Value, Expr, m_parser::{UnaryOp, HexTypeDef, BinaryOp, FuncArgument, MatchBranch, Assignment, Statement, AssignmentOp}};
 
-use crate::{PyLines, one_py_line, unkown_py_lines, PyLine, translate_hextypedef};
+use crate::{PyLines, one_py_line, unkown_py_lines, PyLine};
 
-use super::translate_expr;
+use super::{translate_expr, vec_translate_statements, translate_hextype};
 
 
 pub(crate) fn translate_value(val: Value, lvl: u32) -> PyLines {
@@ -94,6 +94,37 @@ pub(crate) fn translate_binary(loperand: Box<Spanned<Expr>>, operator: BinaryOp,
     PyLines::One(PyLine { indent_lvl: lvl, line })
 }
 
+pub(crate) fn translate_assignment(loperand: Box<Spanned<Expr>>, operator: AssignmentOp, roperand: Box<Spanned<Expr>>, lvl: u32) -> PyLines {
+    let operator = match operator {
+        Assignment::Just => "=",
+        Assignment::Add => "+=",
+        Assignment::Sub => "-=",
+        Assignment::Mul => "*=",
+        Assignment::Div => "/=",
+        Assignment::Mod => "%=",
+        Assignment::RShift => ">>=",
+        Assignment::LShift => "<<=",
+        Assignment::BOr => "|=",
+        Assignment::BAnd => "&=",
+        Assignment::BXor => "^=",
+    };
+    let loperand = translate_expr(loperand.0, lvl);
+    let roperand = translate_expr(roperand.0, lvl);
+
+    let loperand = match loperand {
+        PyLines::One(line) => line.line,
+        _ => todo!()
+    };
+
+    let roperand = match roperand {
+        PyLines::One(line) => line.line,
+        _ => todo!()
+    };
+
+    let line = format!("{loperand} {operator} {roperand}");
+    PyLines::One(PyLine { indent_lvl: lvl, line })
+}
+
 pub(crate) fn translate_ternary(loperand: Box<Spanned<Expr>>, moperand: Box<Spanned<Expr>>, roperand: Box<Spanned<Expr>>, lvl: u32) -> PyLines {
     let loperand = translate_expr(loperand.0, lvl);
     let moperand = translate_expr(moperand.0, lvl+1);
@@ -143,13 +174,13 @@ pub(crate) fn translate_call(func_name: Box<Spanned<Expr>>, arguments: Spanned<V
     PyLines::One(PyLine { indent_lvl: lvl, line })
 }
 
-pub(crate) fn translate_if(test: Box<Spanned<Expr>>, consequent: Box<Spanned<Expr>>, lvl: u32) -> PyLines {
+pub(crate) fn translate_if(test: Box<Spanned<Expr>>, consequent: Spanned<Vec<Spanned<Statement>>>, lvl: u32) -> PyLines {
     let test = translate_expr(test.0, lvl);
     let test = match test {
         PyLines::One(line) => line.line,
         _ => todo!()
     };
-    let consequent = translate_expr(consequent.0, lvl+1);
+    let consequent = vec_translate_statements(consequent.0, lvl+1);
 
     let mut lines = vec![PyLine { indent_lvl: lvl, line: format!("if {test}:") }];
     lines.extend(consequent.into_iter());
@@ -157,9 +188,9 @@ pub(crate) fn translate_if(test: Box<Spanned<Expr>>, consequent: Box<Spanned<Exp
     PyLines::Multiple(lines)
 }
 
-pub(crate) fn translate_if_block(ifs: Box<Spanned<Expr>>, alternative: Box<Spanned<Expr>>, lvl: u32) -> PyLines {
-    let ifs = translate_expr(ifs.0, lvl);
-    let alternative = translate_expr(alternative.0, lvl+1);
+pub(crate) fn translate_if_block(ifs: Spanned<Vec<Spanned<Statement>>>, alternative: Spanned<Vec<Spanned<Statement>>>, lvl: u32) -> PyLines {
+    let ifs = vec_translate_statements(ifs.0, lvl);
+    let alternative = vec_translate_statements(alternative.0, lvl+1);
 
     let mut lines = ifs.into_iter()
         .collect::<Vec<_>>();
@@ -229,10 +260,10 @@ pub(crate) fn translate_namespace_access(previous: Box<Spanned<Expr>>, name: Spa
     format!("{name} {previous}")
 }
 
-pub(crate) fn translate_using(new_name: Spanned<String>, template_parameters: Option<Box<Spanned<Expr>>>, old_name: Spanned<HexTypeDef>, lvl: u32) -> PyLines {
+pub(crate) fn translate_using(new_name: Spanned<String>, template_parameters: Vec<Spanned<Expr>>, old_name: Spanned<HexTypeDef>, lvl: u32) -> PyLines {
     let new_name = new_name.0;
     let old_name = translate_hextypedef(old_name.0, lvl);
-    
+
     if let Some(template_parameters) = template_parameters {
         let template_parameters = translate_expr(template_parameters.0, lvl);
 
@@ -248,7 +279,7 @@ pub(crate) fn translate_return(value: Box<Spanned<Expr>>, lvl: u32) -> PyLines {
     format!("return {value}")
 }
 
-pub(crate) fn translate_func(name: Spanned<String>, args: Spanned<Vec<Spanned<FuncArgument>>>, body: Box<Spanned<Expr>>, lvl: u32) -> PyLines {
+pub(crate) fn translate_func(name: Spanned<String>, args: Spanned<Vec<Spanned<FuncArgument>>>, body: Spanned<Vec<Spanned<Statement>>>, lvl: u32) -> PyLines {
     let name = name.0;
     let args = args.0.into_iter()
         .map(|arg| translate_arg(arg.0, lvl))
@@ -258,7 +289,7 @@ pub(crate) fn translate_func(name: Spanned<String>, args: Spanned<Vec<Spanned<Fu
     format!("def {name}({args}):\n\t{body}")
 }
 
-pub(crate) fn translate_struct(name: Spanned<String>, body: Box<Spanned<Expr>>, template_parameters: Option<Box<Spanned<Expr>>>, lvl: u32) -> PyLines {
+pub(crate) fn translate_struct(name: Spanned<String>, body: Spanned<Vec<Spanned<Statement>>>, template_parameters: Vec<Spanned<Expr>>, lvl: u32) -> PyLines {
     let name = name.0;
     let body = translate_expr(body.0, lvl);
 
@@ -271,14 +302,14 @@ pub(crate) fn translate_struct(name: Spanned<String>, body: Box<Spanned<Expr>>, 
     }
 }
 
-pub(crate) fn translate_namespace(name: Box<Spanned<Expr>>, body: Box<Spanned<Expr>>, lvl: u32) -> PyLines {
+pub(crate) fn translate_namespace(name: Box<Spanned<Expr>>, body: Spanned<Vec<Spanned<Statement>>>, lvl: u32) -> PyLines {
     let name = translate_expr(name.0, lvl);
     let body = translate_expr(body.0, lvl);
 
     format!("{name} = {body}")
 }
 
-pub(crate) fn translate_enum(name: Spanned<String>, value_type: Spanned<HexTypeDef>, body: Box<Spanned<Expr>>, lvl: u32) -> PyLines {
+pub(crate) fn translate_enum(name: Spanned<String>, value_type: Spanned<HexTypeDef>, body: Spanned<Vec<Spanned<Expr>>>, lvl: u32) -> PyLines {
     let name = name.0;
     let value_type = translate_hextypedef(value_type.0, lvl);
     let body = translate_expr(body.0, lvl);
@@ -286,7 +317,7 @@ pub(crate) fn translate_enum(name: Spanned<String>, value_type: Spanned<HexTypeD
     format!("{name} {value_type} {body}")
 }
 
-pub(crate) fn translate_bitfield(name: Spanned<String>, body: Box<Spanned<Expr>>, lvl: u32) -> PyLines {
+pub(crate) fn translate_bitfield(name: Spanned<String>, body: Spanned<Vec<Spanned<Statement>>>, lvl: u32) -> PyLines {
     let name = name.0;
     let body = translate_expr(body.0, lvl);
 
@@ -329,7 +360,14 @@ pub(crate) fn translate_while_loop(condition: Box<Spanned<Expr>>, body: Box<Span
     format!("{condition} {body}")
 }
 
-pub(crate) fn translate_for_loop(var_init: Box<Spanned<Expr>>, var_test: Box<Spanned<Expr>>, var_change: Box<Spanned<Expr>>, body: Box<Spanned<Expr>>, lvl: u32) -> PyLines {
+pub(crate) fn translate_while_loop_statement(condition: Box<Spanned<Expr>>, body: Spanned<Vec<Spanned<Statement>>>, lvl: u32) -> PyLines {
+    let condition = translate_expr(condition.0, lvl);
+    let body = vec_translate_statements(body.0, lvl);
+
+    format!("{condition} {body}")
+}
+
+pub(crate) fn translate_for_loop(var_init: Box<Spanned<Statement>>, var_test: Box<Spanned<Expr>>, var_change: Box<Spanned<Statement>>, body: Spanned<Vec<Spanned<Statement>>>, lvl: u32) -> PyLines {
     let var_init = translate_expr(var_init.0, lvl);
     let var_test = translate_expr(var_test.0, lvl);
     let var_change = translate_expr(var_change.0, lvl);
@@ -345,10 +383,10 @@ pub(crate) fn translate_cast(cast_operator: Spanned<HexTypeDef>, operand: Box<Sp
     format!("{cast_operator} {operand}")
 }
 
-pub(crate) fn translate_union(name: Spanned<String>, body: Box<Spanned<Expr>>, template_parameters: Option<Box<Spanned<Expr>>>, lvl: u32) -> PyLines {
+pub(crate) fn translate_union(name: Spanned<String>, body: Spanned<Vec<Spanned<Statement>>>, template_parameters: Vec<Spanned<Expr>>, lvl: u32) -> PyLines {
     let name = name.0;
     let body = translate_expr(body.0, lvl);
-    
+
     if let Some(template_parameters) = template_parameters {
         let template_parameters = translate_expr(template_parameters.0, lvl);
 
@@ -365,7 +403,7 @@ pub(crate) fn translate_match(parameters: Vec<Spanned<Expr>>, branches: Vec<Matc
     one_py_line(lvl, format!("{parameters} {branches}"))
 }
 
-pub(crate) fn translate_try_catch(try_block: Box<Spanned<Expr>>, catch_block: Option<Box<Spanned<Expr>>>, lvl: u32) -> PyLines {
+pub(crate) fn translate_try_catch(try_block: Spanned<Vec<Spanned<Statement>>>, catch_block: Spanned<Vec<Spanned<Statement>>>, lvl: u32) -> PyLines {
     let try_block = translate_expr(try_block.0, lvl);
     let catch_block = vec![]; // TODO
 
@@ -378,4 +416,25 @@ pub(crate) fn translate_try_catch(try_block: Box<Spanned<Expr>>, catch_block: Op
     ]);
     lines.extend(catch_block.into_iter());
     PyLines::Multiple(lines)
+}
+
+fn translate_arg(arg: FuncArgument, lvl: u32) -> PyLine {
+    match arg {
+        FuncArgument::Parameter(par) => {
+            match translate_expr(par.0, lvl) {
+                PyLines::One(line) => line,
+                _ => unreachable!()
+            }
+        },
+        FuncArgument::ParameterPack((pack, _)) => PyLine{indent_lvl: lvl, line: pack},
+    }
+}
+
+pub(crate) fn translate_hextypedef(value_type: HexTypeDef, lvl: u32) -> PyLine {
+    let HexTypeDef {
+        endianness,
+        name,
+    } = value_type;
+
+    translate_hextype(name.0, lvl)
 }
