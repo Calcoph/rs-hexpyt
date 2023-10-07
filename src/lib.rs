@@ -6,7 +6,7 @@ use pyo3::prelude::*;
 mod expr_translator;
 
 struct PyLine {
-    indent_lvl: u32,
+    indent_lvl: usize,
     line: String
 }
 
@@ -14,6 +14,16 @@ enum PyLines {
     One(PyLine),
     Multiple(Vec<PyLine>),
     None,
+}
+
+impl PyLines {
+    fn unwrap_one(self) -> PyLine {
+        match self {
+            PyLines::One(line) => line,
+            PyLines::Multiple(_) => panic!("Unwrapped one on PyLines::Multiple"),
+            PyLines::None => panic!("Unwrapped one on PyLines::None")
+        }
+    }
 }
 
 impl IntoIterator for PyLines {
@@ -52,8 +62,10 @@ fn translate_file(input_file_path: PathBuf, output_file_path: PathBuf, indentati
 
     let mut output_file = get_header();
 
-    for line in vec_translate_statements(ast.0, 0) {
-        output_file += &line.line;
+    for stmnt in vec_translate_statements(ast.0, 0) {
+        let indent = indentation.repeat(stmnt.indent_lvl as usize);
+        let line = &stmnt.line;
+        output_file = format!("{output_file}{indent}{line}\n");
     }
 
     std::fs::write(output_file_path, output_file)?;
@@ -78,12 +90,13 @@ else:
         byts = f.read()
 _dollar___offset = Dollar(0x00, byts)
 # End of template
+
 "#;
 
     return final_string
 }
 
-fn one_py_line(lvl: u32, line: String) -> PyLines {
+fn one_py_line(lvl: usize, line: String) -> PyLines {
     PyLines::One(
         PyLine {
             indent_lvl: lvl,

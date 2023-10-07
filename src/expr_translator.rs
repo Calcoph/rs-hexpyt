@@ -1,12 +1,12 @@
 use hexparser::{Expr, m_parser::{Statement, FuncCall, Definition, HexType}, token::{Spanned, ValueType}};
 
-use crate::{PyLines, one_py_line, PyLine};
+use crate::{PyLines, one_py_line, PyLine, unkown_py_lines};
 
-use self::translators::{translate_value, translate_expr_list, translate_unary, translate_binary, translate_ternary, translate_call, translate_if, translate_if_block, translate_definition, translate_array_definition, translate_bitfield_entry, translate_enum_entry, translate_namespace_access, translate_using, translate_return, translate_func, translate_struct, translate_namespace, translate_enum, translate_bitfield, translate_access, translate_array_access, translate_attribute, translate_attribute_arguument, translate_while_loop, translate_for_loop, translate_cast, translate_union, translate_match, translate_try_catch, translate_assignment, translate_while_loop_statement};
+use self::translators::{translate_value, translate_expr_list, translate_unary, translate_binary, translate_ternary, translate_call, translate_if, translate_if_block, translate_definition, translate_array_definition, translate_bitfield_entry, translate_enum_entry, translate_namespace_access, translate_using, translate_return, translate_func, translate_struct, translate_namespace, translate_enum, translate_bitfield, translate_access, translate_array_access, translate_attribute, translate_attribute_arguument, translate_while_loop, translate_for_loop, translate_cast, translate_union, translate_match, translate_try_catch, translate_assignment, translate_while_loop_statement, translate_hextypedef};
 
 mod translators;
 
-fn translate_expr(expr: Expr, lvl: u32) -> PyLines {
+fn translate_expr(expr: Expr, lvl: usize) -> PyLines {
     match expr {
         Expr::Error => one_py_line(lvl, "raise Error".to_string()),
         Expr::Value { val } => translate_value(val, lvl),
@@ -30,11 +30,7 @@ fn translate_expr(expr: Expr, lvl: u32) -> PyLines {
     }
 }
 
-fn translate_hextypedef(val: hexparser::m_parser::HexTypeDef, lvl: u32) -> PyLine {
-    todo!()
-}
-
-fn translate_statement(stmnt: Statement, lvl: u32) -> PyLines {
+fn translate_statement(stmnt: Statement, lvl: usize) -> PyLines {
     match stmnt {
         Statement::Call(FuncCall { func_name, arguments }) => translate_call(func_name, arguments, lvl),
         Statement::If { test, consequent } => translate_if(test, consequent, lvl),
@@ -62,11 +58,25 @@ fn translate_statement(stmnt: Statement, lvl: u32) -> PyLines {
     }
 }
 
-pub(crate) fn vec_translate_statements(consequent: Vec<Spanned<Statement>>, lvl: u32) -> PyLines {
-    todo!()
+pub(crate) fn vec_translate_statements(stmnts: Vec<Spanned<Statement>>, lvl: usize) -> PyLines {
+    let mut lines = Vec::new();
+    for stmnt in stmnts {
+        lines.extend(translate_statement(stmnt.0, lvl))
+    }
+
+    unkown_py_lines(lines)
 }
 
-fn translate_hextype(htype: HexType, lvl: u32) -> PyLine {
+pub(crate) fn vec_translate_exprs(exprs: Vec<Spanned<Expr>>, lvl: usize) -> PyLines {
+    let mut lines = Vec::new();
+    for expr in exprs {
+        lines.extend(translate_expr(expr.0, lvl))
+    }
+
+    unkown_py_lines(lines)
+}
+
+fn translate_hextype(htype: HexType, lvl: usize) -> PyLine {
     match htype {
         HexType::Custom(htype) => PyLine {indent_lvl: lvl, line: htype},
         HexType::Path(a) => PyLine {indent_lvl: lvl, line: "None".to_string()}, // TODO
