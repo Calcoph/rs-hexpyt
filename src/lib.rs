@@ -46,7 +46,6 @@ impl IntoIterator for PyLines {
 #[pymodule]
 fn rs_hexpyt(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(translate_file, m)?)?;
-    py.run(&include_str!("../hexpyt/src/primitives.py"), None, None).unwrap();
     Ok(())
 }
 
