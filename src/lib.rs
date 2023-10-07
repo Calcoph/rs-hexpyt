@@ -3,6 +3,8 @@ use std::path::PathBuf;
 use expr_translator::vec_translate_statements;
 use pyo3::prelude::*;
 
+use expr_translator::StatementsContext;
+
 mod expr_translator;
 
 struct PyLine {
@@ -62,7 +64,7 @@ fn translate_file(input_file_path: PathBuf, output_file_path: PathBuf, indentati
 
     let mut output_file = get_header();
 
-    for stmnt in vec_translate_statements(ast.0, 0) {
+    for stmnt in vec_translate_statements(ast.0, 0, StatementsContext::None) {
         let indent = indentation.repeat(stmnt.indent_lvl as usize);
         let line = &stmnt.line;
         output_file = format!("{output_file}{indent}{line}\n");
