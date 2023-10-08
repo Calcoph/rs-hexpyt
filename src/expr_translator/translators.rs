@@ -161,7 +161,7 @@ pub(crate) fn translate_if(test: Box<Spanned<Expr>>, consequent: Spanned<Vec<Spa
     panic!("Didn't take context into account");
     let test = translate_expr(test.0, lvl, context);
     let test = test.unwrap_one().line;
-    let consequent = vec_translate_statements(consequent.0, lvl+1, StatementsContext::If);
+    let consequent = vec_translate_statements(consequent.0, lvl+1, context);
 
     let mut lines = vec![PyLine { indent_lvl: lvl, line: format!("if {test}:") }];
     lines.extend(consequent.into_iter());
@@ -171,8 +171,8 @@ pub(crate) fn translate_if(test: Box<Spanned<Expr>>, consequent: Spanned<Vec<Spa
 
 pub(crate) fn translate_if_block(ifs: Spanned<Vec<Spanned<Statement>>>, alternative: Spanned<Vec<Spanned<Statement>>>, lvl: usize, context: StatementsContext) -> PyLines {
     panic!("Didn't take context into account");
-    let ifs = vec_translate_statements(ifs.0, lvl, StatementsContext::IfBlock);
-    let alternative = vec_translate_statements(alternative.0, lvl+1, StatementsContext::IfAlternative);
+    let ifs = vec_translate_statements(ifs.0, lvl, context);
+    let alternative = vec_translate_statements(alternative.0, lvl+1, context);
 
     let mut lines = ifs.into_iter()
         .collect::<Vec<_>>();
@@ -184,7 +184,6 @@ pub(crate) fn translate_if_block(ifs: Spanned<Vec<Spanned<Statement>>>, alternat
 }
 
 pub(crate) fn translate_definition(value_type: Spanned<HexTypeDef>, name: Box<Spanned<Expr>>, body: Box<Spanned<Expr>>, lvl: usize, context: StatementsContext) -> PyLines {
-    panic!("Didn't take context into account");
     let value_type = translate_hextypedef(value_type.0, lvl, context);
     let value_type = value_type.line;
     let name = translate_expr(name.0, lvl, context);
@@ -192,7 +191,17 @@ pub(crate) fn translate_definition(value_type: Spanned<HexTypeDef>, name: Box<Sp
     let body = translate_expr(body.0, lvl, context);
     let body = body.unwrap_one().line;
 
-    let line = format!("{name} = {value_type}({body})");
+    let line = match context {
+        StatementsContext::None => format!("{name}: {value_type} = {value_type}() @ {body}"),
+        StatementsContext::Struct => format!("self.{name}: {value_type} = {value_type}() @ {body}"),
+        StatementsContext::Function => format!("{name}: {value_type} = {value_type}() @ {body}"),
+        StatementsContext::Namespace => format!("{name}: {value_type} = {value_type}() @ {body}"),
+        StatementsContext::Bitfield => todo!(),
+        StatementsContext::WhileLoop => todo!(),
+        StatementsContext::ForLoop => todo!(),
+        StatementsContext::Union => todo!(),
+        StatementsContext::Try => todo!(),
+    };
 
     one_py_line(lvl, line)
 }
@@ -278,32 +287,34 @@ pub(crate) fn translate_func(name: Spanned<String>, args: Spanned<Vec<Spanned<Fu
 }
 
 pub(crate) fn translate_struct(name: Spanned<String>, body: Spanned<Vec<Spanned<Statement>>>, template_parameters: Vec<Spanned<Expr>>, lvl: usize, context: StatementsContext) -> PyLines {
-    panic!("Didn't take context into account");
+    if context != StatementsContext::None {
+        panic!("Structs only allowed on global")
+    }
     let name = name.0;
     let body = vec_translate_statements(body.0, lvl+1, StatementsContext::Struct);
 
     /*
-class {name}(Struct):
-    """//TODO: This comment is not done yet
-hexpat definition:
-```hexpat
-{docstring}
-```"""
-    def __init__(self, name: str=""):
-        """
-        struct
+    class {name}(Struct):
+        """//TODO: This comment is not done yet
+    hexpat definition:
+    ```hexpat
+    {docstring}
+    ```"""
+        def __init__(self, name: str=""):
+            """
+            struct
 
-        Args:
-            name (str, optional): The name of this instance. Can be whatever you want or just an empty string. Defaults to "".
-        """
-        super().__init__(name)
+            Args:
+                name (str, optional): The name of this instance. Can be whatever you want or just an empty string. Defaults to "".
+            """
+            super().__init__(name)
 
-    def __matmul__(self, _dollar___offset):
-        if not (isinstance(_dollar___offset, Dollar) or isinstance(_dollar___offset, IntStruct)):
-            raise Exception(f'An object of class "Dollar" must be used with the "@" operator. {{type(_dollar___offset)}} was used instead')
-        if isinstance(_dollar___offset, IntStruct):
-            _dollar___offset = _dollar___offset.to_dollar()
-        _dollar___offset_copy = _dollar___offset.copy()
+        def __matmul__(self, _dollar___offset):
+            if not (isinstance(_dollar___offset, Dollar) or isinstance(_dollar___offset, IntStruct)):
+                raise Exception(f'An object of class "Dollar" must be used with the "@" operator. {{type(_dollar___offset)}} was used instead')
+            if isinstance(_dollar___offset, IntStruct):
+                _dollar___offset = _dollar___offset.to_dollar()
+            _dollar___offset_copy = _dollar___offset.copy()
 */
     let mut lines = if template_parameters.is_empty() {
         vec![
@@ -337,6 +348,9 @@ hexpat definition:
 
     lines.extend(body.into_iter());
 
+    lines.push(PyLine { indent_lvl: lvl+2, line: r#"super().init_struct(_dollar___offset_copy, _dollar___offset.copy())"#.into() });
+    lines.push(PyLine { indent_lvl: lvl+2, line: r#"return self"#.into() });
+
     PyLines::Multiple(lines)
 }
 
@@ -354,32 +368,188 @@ pub(crate) fn translate_namespace(name: Box<Spanned<Expr>>, body: Spanned<Vec<Sp
     PyLines::Multiple(lines)
 }
 
+enum EnumType {
+    Enum,
+    IntEnum,
+    RealEnum,
+    CharEnum,
+    BoolEnum
+}
+
+impl ToString for EnumType {
+    fn to_string(&self) -> String {
+        match self {
+            EnumType::Enum => "Enum",
+            EnumType::IntEnum => "IntEnum",
+            EnumType::RealEnum => "RealEnum",
+            EnumType::CharEnum => "CharEnum",
+            EnumType::BoolEnum => "BoolEnum",
+        }.into()
+    }
+}
+
 pub(crate) fn translate_enum(name: Spanned<String>, value_type: Spanned<HexTypeDef>, body: Spanned<Vec<Spanned<Expr>>>, lvl: usize, context: StatementsContext) -> PyLines {
-    panic!("Didn't take context into account");
+    if context != StatementsContext::None {
+        panic!("Enums only allowed on global")
+    }
     let name = name.0;
     let value_type = translate_hextypedef(value_type.0, lvl, context).line;
+    let class = match value_type.as_str() {
+        "u8" | "u16" | "u24" | "u32" | "u48" | "u64" | "u96" | "u128" => EnumType::IntEnum,
+        "s8" | "s16" | "s24" | "s32" | "s48" | "s64" | "s96" | "s128" => EnumType::IntEnum,
+        "Float" | "double" => EnumType::RealEnum,
+        "char" | "char16" => EnumType::CharEnum,
+        "Bool" => EnumType::BoolEnum,
+        _ => EnumType::Enum
+    }.to_string();
     let body = vec_translate_exprs(body.0, lvl+1, context);
 
+    /*
+    class {name}({class}):
+        """ //TODO: This comment is not done yet
+    hexpat definition:
+    ```hexpat
+    {docstring}
+    ```"""
+        _enum__dict___ = {
+    */
     let mut lines = vec![
-        PyLine { indent_lvl: lvl, line: format!("enum {name} {value_type}") }
+        PyLine { indent_lvl: lvl, line: format!("class {name}({class}):") },
+        PyLine { indent_lvl: lvl+1, line: format!("_enum__dict___ = {{") }
     ];
 
     lines.extend(body);
+    /*
+        def __init__(self, value=None, name: str=""):
+            """
+            enum
+
+            Args:
+                value (optional): Defaults to None.
+                name (str, optional): The name of this instance. Can be whatever you want or just an empty string. Defaults to "".
+            """
+            super().__init__({desc[1]}, value, name)
+    */
+    lines.extend(vec![
+        PyLine { indent_lvl: lvl+1, line: format!(r#"def __init__(self, value=None, name: str=""):"#) },
+        PyLine { indent_lvl: lvl+2, line: format!(r#"enum"#) },
+        PyLine { indent_lvl: 0, line: format!(r#""#) },
+        PyLine { indent_lvl: lvl+3, line: format!(r#"value (optional): Defaults to None."#) },
+        PyLine { indent_lvl: lvl+3, line: format!(r#"name (str, optional): The name of this instance. Can be whatever you want or just an empty string. Defaults to ""."#) },
+        PyLine { indent_lvl: lvl+2, line: format!(r#"""""#) },
+        PyLine { indent_lvl: lvl+2, line: format!(r#"super().__init__({value_type}, value, name)"#) }
+
+    ]);
+
     PyLines::Multiple(lines)
 }
 
 pub(crate) fn translate_bitfield(name: Spanned<String>, body: Spanned<Vec<Spanned<Statement>>>, lvl: usize, context: StatementsContext) -> PyLines {
-    panic!("Didn't take context into account");
+    if context != StatementsContext::None {
+        panic!("Enums only allowed on global")
+    }
     let name = name.0;
-    let body = vec_translate_statements(body.0, lvl+1, StatementsContext::Bitfield);
 
+    /*
+    class {name}(BitField):
+        """ //TODO: This comment is not done yet
+    hexpat definition:
+    ```hexpat
+    {docstring}
+    ```"""
+        def __init__(self, name: str=""):
+            """
+            bitfield
+
+            Args:
+                name (str, optional): The name of this instance. Can be whatever you want or just an empty string. Defaults to "".
+            """
+
+            super().__init__(name)
+
+        def __matmul__(self, _dollar___offset):
+            if not (isinstance(_dollar___offset, Dollar) or isinstance(_dollar___offset, IntStruct)):
+                raise Exception(f'An object of class "Dollar" must be used with the "@" operator. {type(_dollar___offset)} was used instead')
+            if isinstance(_dollar___offset, IntStruct):
+                _dollar___offset = _dollar___offset.to_dollar()
+            _dollar___offset_copy = _dollar___offset.copy()
+            _read__able____bytes: bytes = _dollar___offset.read({total_bytes})
+    */
     let mut lines = vec![
-        PyLine { indent_lvl: lvl, line: name }
+        PyLine { indent_lvl: lvl, line: format!(r#"class {name}(BitField):"#) },
+        PyLine { indent_lvl: lvl+1, line: format!(r#"def __init__(self, name: str=""):"#) },
+        PyLine { indent_lvl: lvl+2, line: format!(r#"""""#) },
+        PyLine { indent_lvl: lvl+2, line: format!(r#"bitfield"#) },
+        PyLine { indent_lvl: 0, line: format!(r#""#) },
+        PyLine { indent_lvl: lvl+2, line: format!(r#"Args:"#) },
+        PyLine { indent_lvl: lvl+3, line: format!(r#"name (str, optional): The name of this instance. Can be whatever you want or just an empty string. Defaults to ""."#) },
+        PyLine { indent_lvl: lvl+2, line: format!(r#"""""#) },
+        PyLine { indent_lvl: 0, line: format!(r#""#) },
+        PyLine { indent_lvl: lvl+2, line: format!(r#"super().__init__(name)"#) },
+        PyLine { indent_lvl: 0, line: format!(r#""#) },
+        PyLine { indent_lvl: lvl+1, line: format!(r#"def __matmul__(self, _dollar___offset):"#) },
+        PyLine { indent_lvl: lvl+2, line: format!(r#"if not (isinstance(_dollar___offset, Dollar) or isinstance(_dollar___offset, IntStruct)):"#) },
+        PyLine { indent_lvl: lvl+3, line: format!(r#"raise Exception(f'An object of class "Dollar" must be used with the "@" operator. {{type(_dollar___offset)}} was used instead')"#) },
+        PyLine { indent_lvl: lvl+2, line: format!(r#"if isinstance(_dollar___offset, IntStruct):"#) },
+        PyLine { indent_lvl: lvl+3, line: format!(r#"_dollar___offset = _dollar___offset.to_dollar()"#) },
+        PyLine { indent_lvl: lvl+2, line: format!(r#"_dollar___offset_copy = _dollar___offset.copy()"#) },
     ];
+
+    let body = translate_bitfield_body(body.0, lvl+1);
 
     lines.extend(body);
 
+    lines.extend(vec![
+        PyLine { indent_lvl: lvl+2, line: format!(r#"super().init_struct(_dollar___offset_copy, _dollar___offset.copy())"#) },
+        PyLine { indent_lvl: lvl+2, line: format!(r#"return self"#) },
+    ]);
+
     PyLines::Multiple(lines)
+}
+
+fn translate_bitfield_body(body: Vec<Spanned<Statement>>, lvl: usize) -> PyLines {
+    let mut lines = Vec::new();
+    let mut bits_read = 0;
+    for stmnt in body {
+        match stmnt.0 {
+            Statement::BitFieldEntry { name, length } => {
+                let name = name.0;
+                let length: usize = translate_expr(length.0, lvl, StatementsContext::Bitfield).unwrap_one().line.parse().expect("Can't use anything other than a number literal as a bitfield entry length");
+                let mut b_size = length;
+                if bits_read == 8 {
+                    bits_read = 0
+                }
+                if bits_read == 0 {
+                    lines.push(PyLine { indent_lvl: lvl, line: "_read__able____bytes: bytes = _dollar___offset.read(1)".into() })
+                }
+                if b_size > 8 || b_size+bits_read > 8 {
+                    lines.push(PyLine { indent_lvl: lvl, line: format!("{name} = 0") });
+                    let mut bit_shift = 0;
+                    while b_size > 8 || (b_size + bits_read) > 8 {
+                        let bits_to_read = 8 - bits_read;
+                        lines.push(PyLine { indent_lvl: lvl, line: format!("{name} += ((_read__able____bytes[0] >> {bits_read}) & self._bit_field___masks_dict[{bits_to_read}]) << {bit_shift}") });
+                        lines.push(PyLine { indent_lvl: lvl, line: format!("_read__able____bytes = _dollar___offset.read(1)") });
+                        bits_read = 0;
+                        b_size -= bits_to_read;
+                        bit_shift += bits_to_read;
+                    }
+                    if b_size > 0 {
+                        lines.push(PyLine { indent_lvl: lvl, line: format!("{name} += (_read__able____bytes[0] & self._bit_field___masks_dict[{length}]) << {bit_shift}") });
+                        bits_read = b_size
+                    } else {
+                        lines.push(PyLine { indent_lvl: lvl, line: format!("{name} >>= 8") });
+                    }
+                    lines.push(PyLine { indent_lvl: lvl, line: format!("self.{name} = {name}") });
+                } else {
+                    lines.push(PyLine { indent_lvl: lvl, line: format!("self.{name} = (_read__able____bytes[0] >> {bits_read}) & self._bit_field___masks_dict[{length}]") });
+                    bits_read += b_size
+                }
+            },
+            _ => todo!() // Some variants are reachable, others aren't
+        }
+    }
+
+    unkown_py_lines(lines)
 }
 
 pub(crate) fn translate_access(item: Box<Spanned<Expr>>, member: Box<Spanned<Expr>>, lvl: usize, context: StatementsContext) -> PyLines {

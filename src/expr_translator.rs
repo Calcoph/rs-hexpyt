@@ -40,7 +40,6 @@ fn translate_statement(stmnt: Statement, lvl: usize, context: StatementsContext)
         Statement::If { test, consequent } => translate_if(test, consequent, lvl, context),
         Statement::IfBlock { ifs, alternative } => translate_if_block(ifs, alternative, lvl, context),
         Statement::ArrayDefinition { value_type, array_name, size, body } => translate_array_definition(value_type, array_name, size, body, lvl, context),
-        Statement::BitFieldEntry { name, length } => translate_bitfield_entry(name, length, lvl, context),
         Statement::Using { new_name, template_parameters, old_name } => translate_using(new_name, template_parameters, old_name, lvl, context),
         Statement::Return { value } => translate_return(value, lvl, context),
         Statement::Continue => {
@@ -68,16 +67,14 @@ fn translate_statement(stmnt: Statement, lvl: usize, context: StatementsContext)
         },
         Statement::WhileLoop { condition, body } => translate_while_loop_statement(condition, body, lvl, context),
         Statement::Padding { padding_body } => translate_expr(padding_body.0, lvl, context),
+        Statement::BitFieldEntry { name, length } => unreachable!(), // bitfield statements are handled separately
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum StatementsContext {
     None,
     Struct,
-    If,
-    IfBlock,
-    IfAlternative,
     Function,
     Namespace,
     Bitfield,
