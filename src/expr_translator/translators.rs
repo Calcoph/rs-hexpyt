@@ -5,7 +5,6 @@ use crate::{PyLines, one_py_line, unkown_py_lines, PyLine, expr_translator::{vec
 use super::{translate_expr, vec_translate_statements, translate_hextype, StatementsContext};
 
 pub(crate) fn translate_value(val: Value, lvl: usize, context: StatementsContext) -> PyLines {
-    panic!("Didn't take context into account");
     match val {
         Value::Null => one_py_line(lvl, "None".to_string()),
         Value::Bool(b) => if b {
@@ -41,7 +40,6 @@ pub(crate) fn translate_unary(operation: UnaryOp, operand: Box<Spanned<Expr>>, l
 }
 
 pub(crate) fn translate_binary(loperand: Box<Spanned<Expr>>, operator: BinaryOp, roperand: Box<Spanned<Expr>>, lvl: usize, context: StatementsContext) -> PyLines {
-    panic!("Didn't take context into account");
     let operator = match operator {
         BinaryOp::Add => "+",
         BinaryOp::Sub => "-",
@@ -87,19 +85,18 @@ pub(crate) fn translate_binary(loperand: Box<Spanned<Expr>>, operator: BinaryOp,
 }
 
 pub(crate) fn translate_assignment(loperand: Box<Spanned<Expr>>, operator: AssignmentOp, roperand: Box<Spanned<Expr>>, lvl: usize, context: StatementsContext) -> PyLines {
-    panic!("Didn't take context into account");
-    let operator = match operator {
-        AssignmentOp::Just => "=",
-        AssignmentOp::Add => "+=",
-        AssignmentOp::Sub => "-=",
-        AssignmentOp::Mul => "*=",
-        AssignmentOp::Div => "/=",
-        AssignmentOp::Mod => "%=",
-        AssignmentOp::RShift => ">>=",
-        AssignmentOp::LShift => "<<=",
-        AssignmentOp::BOr => "|=",
-        AssignmentOp::BAnd => "&=",
-        AssignmentOp::BXor => "^=",
+    let (operator, say_type) = match operator {
+        AssignmentOp::Just => ("=", true),
+        AssignmentOp::Add => ("+=", false),
+        AssignmentOp::Sub => ("-=", false),
+        AssignmentOp::Mul => ("*=", false),
+        AssignmentOp::Div => ("/=", false),
+        AssignmentOp::Mod => ("%=", false),
+        AssignmentOp::RShift => (">>=", false),
+        AssignmentOp::LShift => ("<<=", false),
+        AssignmentOp::BOr => ("|=", false),
+        AssignmentOp::BAnd => ("&=", false),
+        AssignmentOp::BXor => ("^=", false),
     };
     let loperand = translate_expr(loperand.0, lvl, context);
     let roperand = translate_expr(roperand.0, lvl, context);
@@ -108,7 +105,19 @@ pub(crate) fn translate_assignment(loperand: Box<Spanned<Expr>>, operator: Assig
 
     let roperand = roperand.unwrap_one().line;
 
-    let line = format!("{loperand} {operator} {roperand}");
+    let line = match (context, say_type) {
+        (StatementsContext::None, true) => format!("{loperand} {operator} {roperand}"),
+        (StatementsContext::None, false) => format!("{loperand} {operator} {roperand}"),
+        (StatementsContext::Struct, _) => panic!("Didn't take context into account"),
+        (StatementsContext::Function, _) => format!("{loperand} {operator} {roperand}"),
+        (StatementsContext::Namespace, _) => panic!("Didn't take context into account"),
+        (StatementsContext::Bitfield, _) => panic!("Didn't take context into account"),
+        (StatementsContext::WhileLoop, _) => panic!("Didn't take context into account"),
+        (StatementsContext::ForLoop, _) => panic!("Didn't take context into account"),
+        (StatementsContext::Union, _) => panic!("Didn't take context into account"),
+        (StatementsContext::Try, _) => panic!("Didn't take context into account"),
+    };
+
     one_py_line(lvl, line)
 }
 
@@ -207,7 +216,6 @@ pub(crate) fn translate_definition(value_type: Spanned<HexTypeDef>, name: Box<Sp
 }
 
 pub(crate) fn translate_array_definition(value_type: Spanned<HexTypeDef>, array_name: Box<Spanned<Expr>>, size: Box<Spanned<Expr>>, body: Box<Spanned<Expr>>, lvl: usize, context: StatementsContext) -> PyLines {
-    panic!("Didn't take context into account");
     let value_type = translate_hextypedef(value_type.0, lvl, context);
     let value_type = value_type.line;
     let array_name = translate_expr(array_name.0, lvl, context);
@@ -215,9 +223,24 @@ pub(crate) fn translate_array_definition(value_type: Spanned<HexTypeDef>, array_
     let body = translate_expr(body.0, lvl, context);
     let body = body.unwrap_one().line;
 
-    let line = format!("{array_name} = Array({value_type}, {body})");
+    let lines = match context {
+        StatementsContext::None => vec![
+            PyLine {indent_lvl: lvl, line: format!("{array_name}: Array[{value_type}] = Array({value_type}, {body})")}
+        ],
+        StatementsContext::Struct => vec![
+            PyLine { indent_lvl: lvl, line: format!("{array_name}: Array[{value_type}] = Array({value_type}, {body}) @ _dollar___offset")},
+            PyLine { indent_lvl: lvl, line: format!("self.{array_name} = {array_name}")}
+        ],
+        StatementsContext::Function => todo!(),
+        StatementsContext::Namespace => todo!(),
+        StatementsContext::Bitfield => todo!(),
+        StatementsContext::WhileLoop => todo!(),
+        StatementsContext::ForLoop => todo!(),
+        StatementsContext::Union => todo!(),
+        StatementsContext::Try => todo!(),
+    };
 
-    one_py_line(lvl, line)
+    unkown_py_lines(lines)
 }
 
 pub(crate) fn translate_bitfield_entry(name: Spanned<String>, length: Box<Spanned<Expr>>, lvl: usize, context: StatementsContext) -> PyLines {
@@ -269,7 +292,9 @@ pub(crate) fn translate_return(value: Box<Spanned<Expr>>, lvl: usize, context: S
 }
 
 pub(crate) fn translate_func(name: Spanned<String>, args: Spanned<Vec<Spanned<FuncArgument>>>, body: Spanned<Vec<Spanned<Statement>>>, lvl: usize, context: StatementsContext) -> PyLines {
-    panic!("Didn't take context into account");
+    if context != StatementsContext::None {
+        panic!("Didn't take context into account");
+    }
     let name = name.0;
     let args = args.0.into_iter()
         .map(|arg| translate_arg(arg.0, lvl, context))
@@ -291,7 +316,7 @@ pub(crate) fn translate_struct(name: Spanned<String>, body: Spanned<Vec<Spanned<
         panic!("Structs only allowed on global")
     }
     let name = name.0;
-    let body = vec_translate_statements(body.0, lvl+1, StatementsContext::Struct);
+    let body = vec_translate_statements(body.0, lvl+2, StatementsContext::Struct);
 
     /*
     class {name}(Struct):
@@ -495,7 +520,7 @@ pub(crate) fn translate_bitfield(name: Spanned<String>, body: Spanned<Vec<Spanne
         PyLine { indent_lvl: lvl+2, line: format!(r#"_dollar___offset_copy = _dollar___offset.copy()"#) },
     ];
 
-    let body = translate_bitfield_body(body.0, lvl+1);
+    let body = translate_bitfield_body(body.0, lvl+2);
 
     lines.extend(body);
 
@@ -553,7 +578,6 @@ fn translate_bitfield_body(body: Vec<Spanned<Statement>>, lvl: usize) -> PyLines
 }
 
 pub(crate) fn translate_access(item: Box<Spanned<Expr>>, member: Box<Spanned<Expr>>, lvl: usize, context: StatementsContext) -> PyLines {
-    panic!("Didn't take context into account");
     let item = translate_expr(item.0, lvl, context).unwrap_one().line;
     let member = translate_expr(member.0, lvl, context).unwrap_one().line;
 
@@ -561,7 +585,9 @@ pub(crate) fn translate_access(item: Box<Spanned<Expr>>, member: Box<Spanned<Exp
 }
 
 pub(crate) fn translate_array_access(array: Box<Spanned<Expr>>, index: Box<Spanned<Expr>>, lvl: usize, context: StatementsContext) -> PyLines {
-    panic!("Didn't take context into account");
+    if context != StatementsContext::None {
+        panic!("Didn't take context into account");
+    }
     let array = translate_expr(array.0, lvl, context).unwrap_one().line;
     let index = translate_expr(index.0, lvl, context).unwrap_one().line;
 
@@ -569,19 +595,18 @@ pub(crate) fn translate_array_access(array: Box<Spanned<Expr>>, index: Box<Spann
 }
 
 pub(crate) fn translate_attribute(arguments: Spanned<Vec<Spanned<Expr>>>, lvl: usize, context: StatementsContext) -> PyLines {
-    panic!("Didn't take context into account");
-    one_py_line(lvl, arguments.0.into_iter()
+    let line = arguments.0.into_iter()
         .map(|(arg, _)| translate_expr(arg, lvl, context))
         .map(|arg| match arg {
             PyLines::One(arg) => arg.line,
             _ => todo!()
         }).fold(String::new(), |old, new| {
             format!("{old}, {new}")
-        }))
+        });
+    one_py_line(lvl, format!("#{line}"))
 }
 
-pub(crate) fn translate_attribute_arguument(name: Box<Spanned<Expr>>, value: Vec<Spanned<Expr>>, lvl: usize, context: StatementsContext) -> PyLines {
-    panic!("Didn't take context into account");
+pub(crate) fn translate_attribute_argument(name: Box<Spanned<Expr>>, value: Vec<Spanned<Expr>>, lvl: usize, context: StatementsContext) -> PyLines {
     let name = translate_expr(name.0, lvl, context).unwrap_one().line;
     let value = vec_translate_exprs(value, lvl, context).unwrap_one().line;
 
@@ -603,7 +628,6 @@ pub(crate) fn translate_while_loop(condition: Box<Spanned<Expr>>, body: Box<Span
 }
 
 pub(crate) fn translate_while_loop_statement(condition: Box<Spanned<Expr>>, body: Spanned<Vec<Spanned<Statement>>>, lvl: usize, context: StatementsContext) -> PyLines {
-    panic!("Didn't take context into account");
     let condition = translate_expr(condition.0, lvl, context).unwrap_one().line;
     let body = vec_translate_statements(body.0, lvl+1, StatementsContext::WhileLoop);
 
@@ -703,7 +727,6 @@ fn translate_arg(arg: FuncArgument, lvl: usize, context: StatementsContext) -> P
 }
 
 pub(crate) fn translate_hextypedef(value_type: HexTypeDef, lvl: usize, context: StatementsContext) -> PyLine {
-    panic!("Didn't take context into account");
     let HexTypeDef {
         endianness,
         name,

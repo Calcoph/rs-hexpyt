@@ -2,19 +2,17 @@ use hexparser::{Expr, m_parser::{Statement, FuncCall, Definition, HexType}, toke
 
 use crate::{PyLines, one_py_line, PyLine, unkown_py_lines};
 
-use self::translators::{translate_value, translate_expr_list, translate_unary, translate_binary, translate_ternary, translate_call, translate_if, translate_if_block, translate_definition, translate_array_definition, translate_bitfield_entry, translate_enum_entry, translate_namespace_access, translate_using, translate_return, translate_func, translate_struct, translate_namespace, translate_enum, translate_bitfield, translate_access, translate_array_access, translate_attribute, translate_attribute_arguument, translate_while_loop, translate_for_loop, translate_cast, translate_union, translate_match, translate_try_catch, translate_assignment, translate_while_loop_statement, translate_hextypedef};
+use self::translators::{translate_value, translate_expr_list, translate_unary, translate_binary, translate_ternary, translate_call, translate_if, translate_if_block, translate_definition, translate_array_definition, translate_bitfield_entry, translate_enum_entry, translate_namespace_access, translate_using, translate_return, translate_func, translate_struct, translate_namespace, translate_enum, translate_bitfield, translate_access, translate_array_access, translate_attribute, translate_attribute_argument, translate_while_loop, translate_for_loop, translate_cast, translate_union, translate_match, translate_try_catch, translate_assignment, translate_while_loop_statement, translate_hextypedef};
 
 mod translators;
 
 fn translate_expr(expr: Expr, lvl: usize, context: StatementsContext) -> PyLines {
-    panic!("Didn't take context into account");
     match expr {
         Expr::Error => one_py_line(lvl, "raise Error".to_string()),
         Expr::Value { val } => translate_value(val, lvl, context),
         Expr::ExprList { list } => translate_expr_list(list, lvl, context),
         Expr::UnnamedParameter { type_ } => PyLines::One(translate_hextype(type_.0, lvl, context)),
         Expr::Local { name } => {
-            panic!("Didn't take context into account");
             one_py_line(lvl, name.0)
         },
         Expr::Unary { operation, operand } => translate_unary(operation, operand, lvl, context),
@@ -27,7 +25,7 @@ fn translate_expr(expr: Expr, lvl: usize, context: StatementsContext) -> PyLines
         Expr::Access { item, member } => translate_access(item, member, lvl, context),
         Expr::ArrayAccess { array, index } => translate_array_access(array, index, lvl, context),
         Expr::Attribute { arguments } => translate_attribute(arguments, lvl, context),
-        Expr::AttributeArgument { name, value } => translate_attribute_arguument(name, value, lvl, context),
+        Expr::AttributeArgument { name, value } => translate_attribute_argument(name, value, lvl, context),
         Expr::WhileLoop { condition, body } => translate_while_loop(condition, body, lvl, context),
         Expr::Cast { cast_operator, operand } => translate_cast(cast_operator, operand, lvl, context),
         Expr::Type { val } => PyLines::One(translate_hextypedef(val, lvl, context)),
@@ -85,7 +83,6 @@ pub(crate) enum StatementsContext {
 }
 
 pub(crate) fn vec_translate_statements(stmnts: Vec<Spanned<Statement>>, lvl: usize, context: StatementsContext) -> PyLines {
-    panic!("Didn't take context into account");
     let mut lines = Vec::new();
     for stmnt in stmnts {
         lines.extend(translate_statement(stmnt.0, lvl, context))
@@ -105,7 +102,6 @@ pub(crate) fn vec_translate_exprs(exprs: Vec<Spanned<Expr>>, lvl: usize, context
 }
 
 fn translate_hextype(htype: HexType, lvl: usize, context: StatementsContext) -> PyLine {
-    panic!("Didn't take context into account");
     match htype {
         HexType::Custom(htype) => PyLine {indent_lvl: lvl, line: htype},
         HexType::Path(a) => PyLine {indent_lvl: lvl, line: "None".to_string()}, // TODO
