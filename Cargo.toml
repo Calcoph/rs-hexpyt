@@ -9,8 +9,8 @@ name = "rs_hexpyt"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = "0.19.0"
+pyo3 = "0.20.0"
 
 [dependencies.hexparser]
 git = "https://github.com/Calcoph/hexpat-lsp"
-rev = "fbbe9e8"
+rev = "5a10bb5"
