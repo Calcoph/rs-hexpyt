@@ -220,15 +220,17 @@ pub(crate) fn translate_array_definition(value_type: Spanned<HexTypeDef>, array_
     let value_type = value_type.line;
     let array_name = translate_expr(array_name.0, lvl, context);
     let array_name = array_name.unwrap_one().line;
+    let size = translate_expr(size.0, lvl, context);
+    let size = size.unwrap_one().line;
     let body = translate_expr(body.0, lvl, context);
     let body = body.unwrap_one().line;
 
     let lines = match context {
         StatementsContext::None => vec![
-            PyLine {indent_lvl: lvl, line: format!("{array_name}: Array[{value_type}] = Array({value_type}, {body})")}
+            PyLine {indent_lvl: lvl, line: format!("{array_name}: Array[{value_type}] = Array({value_type}, {size}) @ ({body})")}
         ],
         StatementsContext::Struct => vec![
-            PyLine { indent_lvl: lvl, line: format!("{array_name}: Array[{value_type}] = Array({value_type}, {body}) @ _dollar___offset")},
+            PyLine { indent_lvl: lvl, line: format!("{array_name}: Array[{value_type}] = Array({value_type}, {size}) @ _dollar___offset")},
             PyLine { indent_lvl: lvl, line: format!("self.{array_name} = {array_name}")}
         ],
         StatementsContext::Function => todo!(),
