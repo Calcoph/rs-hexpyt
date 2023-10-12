@@ -201,10 +201,10 @@ pub(crate) fn translate_definition(value_type: Spanned<HexTypeDef>, name: Box<Sp
     let body = body.unwrap_one().line;
 
     let line = match context {
-        StatementsContext::None => format!("{name}: {value_type} = {value_type}() @ {body}"),
-        StatementsContext::Struct => format!("self.{name}: {value_type} = {value_type}() @ {body}"),
-        StatementsContext::Function => format!("{name}: {value_type} = {value_type}() @ {body}"),
-        StatementsContext::Namespace => format!("{name}: {value_type} = {value_type}() @ {body}"),
+        StatementsContext::None => format!("{name}: {value_type} = {value_type}() @ ({body})"),
+        StatementsContext::Struct => format!("self.{name}: {value_type} = {value_type}() @ ({body})"),
+        StatementsContext::Function => format!("{name}: {value_type} = {value_type}() @ ({body})"),
+        StatementsContext::Namespace => format!("{name}: {value_type} = {value_type}() @ ({body})"),
         StatementsContext::Bitfield => todo!(),
         StatementsContext::WhileLoop => todo!(),
         StatementsContext::ForLoop => todo!(),
