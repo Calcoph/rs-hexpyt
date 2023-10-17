@@ -75,7 +75,7 @@ fn translate_file(input_file_path: PathBuf, output_file_path: PathBuf, indentati
 }
 
 fn get_header() -> String {
-    let mut final_string = "from primitives import Dollar, Struct, BitField, IntStruct, ".to_string();
+    let mut final_string = "from rs_hexpyt.primitives import Dollar, Struct, BitField, IntStruct, ".to_string();
     final_string += "u8, u16, u24, u32, u48, u64, u96, u128, ";
     final_string += "s8, s16, s24, s32, s48, s64, s96, s128, ";
     final_string += "Float, double, char, char16, Bool, ";
