@@ -10,3 +10,24 @@ else:
         byts = f.read()
 _dollar___offset = Dollar(0x00, byts)
 # End of template
+# This comment is here just so the test fails, attribute arguments are not forseen to be supported yet
+class A(Struct):
+    def __init__(self, name: str=""):
+        """
+        struct
+
+        Args
+            name (str, optional): The name of this instance. Can be whatever you want or just an empty string. Defaults to "".
+        """
+        super().__init__(name)
+
+    def __matmul__(self, _dollar___offset):
+        if not (isinstance(_dollar___offset, Dollar) or isinstance(_dollar___offset, IntStruct)):
+            raise Exception(f'An object of class "Dollar" must be used with the "@" operator. {{type(_dollar___offset)}} was used instead')
+        if isinstance(_dollar___offset, IntStruct):
+            _dollar___offset = _dollar___offset.to_dollar()
+        _dollar___offset_copy = _dollar___offset.copy()
+        self.b: u8 = u8('b') @ _dollar___offset
+
+        super().init_struct(_dollar___offset_copy, _dollar___offset.copy())
+        return self
