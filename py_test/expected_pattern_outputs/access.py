@@ -3,7 +3,7 @@ from rs_hexpyt.primitives import Dollar, Struct, BitField, IntStruct, u8, u16, u
 # Template to read from a file. follow the instructions.
 # _dollar___offset has this name so it doesn't clash with others. Feel free to rename it.
 if True: # Change this from "if True" to "if False", then put the file path below.
-    byts = b'A'
+    byts = b''
 else:
     file_path = "" # Put the file path here and change the above "if True" to "if False".
     with open(file_path, "rb") as f:
