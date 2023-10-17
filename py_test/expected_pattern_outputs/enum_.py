@@ -10,4 +10,3 @@ else:
         byts = f.read()
 _dollar___offset = Dollar(0x00, byts)
 # End of template
-
