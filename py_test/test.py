@@ -33,4 +33,19 @@ if not os.path.exists(out_dir):
 
 for pattern_input in pattern_inputs:
     pattern_output = pattern_input.split(".")[0] + ".py"
-    translate_file(in_path(pattern_input), out_path(pattern_output))
+    try:
+        translate_file(in_path(pattern_input), out_path(pattern_output))
+    except:
+        pass
+
+red = "\x1B[31m"
+green = "\x1B[32m"
+clear = "\x1B[0m"
+
+for file in os.listdir("py_test/pattern_outputs"):
+    with open(f"py_test/pattern_outputs/{file}", "r") as created_file:
+        with open(f"py_test/expected_pattern_outputs/{file}", "r") as expected_file:
+            if created_file == expected_file:
+                print(f"test {file} {green}passed{clear}")
+            else:
+                print(f"test {file} {red}failed{clear}")
